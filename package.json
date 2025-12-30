@@ -1,0 +1,16 @@
+{
+  "name": "pro_x_usman",
+  "version": "1.0.0",
+  "description": "WhatsApp Termux Bot: old menu + 500+ features on WhatsApp",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "baileys": "^4.3.0",
+    "chalk": "^4.1.2",
+    "figlet": "^1.5.2",
+    "pino": "^8.0.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
