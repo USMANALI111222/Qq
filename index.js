@@ -1,81 +1,93 @@
-#!/usr/bin/env node
-
-const { WAConnection } = require('baileys');
-const chalk = require('chalk');
+const { default: makeWASocket, useSingleFileAuthState, DisconnectReason } = require("@adiwajshing/baileys");
+const { state, saveState } = useSingleFileAuthState('./auth_info.json');
 const figlet = require('figlet');
+const chalk = require('chalk');
 const readline = require('readline');
-const fs = require('fs');
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const adminModule = require('./modules/admin');
+const messagesModule = require('./modules/messages');
+const featuresModule = require('./modules/features');
 
-// Modules
-const admin = require('./modules/admin');
-const messages = require('./modules/messages');
-const features = require('./modules/features'); // 500+ MD bot features
-const utils = require('./modules/utils');
+// Typing effect title
+console.log(chalk.red(figlet.textSync('PRO X USMAN', { horizontalLayout: 'full' })));
 
-let conn = new WAConnection();
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
 
-// ---------- UTILS ----------
-function ask(q){ return new Promise(res => rl.question(q, ans => res(ans.trim()))) }
+async function startBot() {
+    const conn = makeWASocket({
+        auth: state,
+        printQRInTerminal: true
+    });
 
-// ---------- TERMUX MENU ----------
-async function mainMenu(){
-    console.log(chalk.cyan(`
-============================
+    conn.ev.on('creds.update', saveState);
+
+    conn.ev.on('connection.update', (update) => {
+        if(update.connection === 'close'){
+            console.log(chalk.red('Connection closed. Restarting...'));
+            startBot();
+        } else if(update.connection === 'open'){
+            console.log(chalk.green('✅ Connected!'));
+        }
+    });
+
+    // Load WhatsApp features (500+)
+    featuresModule.start(conn);
+
+    // Termux menu
+    const menu = `
 1) Check All Messages
 2) Promote Admin
 3) Demote Admin
 4) Kick Users
 5) Ban Number
 0) Exit
-============================
-`));
-    const choice = await ask("> ");
-    const groups = conn.chats.array.filter(c => c.jid.includes('@g.us'));
+`;
 
-    if(choice==="1"){ messages.showAll(conn); }
-    if(choice==="2"){ 
-        const g = await ask("Select group number: ");
-        const number = await ask("Enter number: ");
-        await admin.promote(conn, groups[g-1].jid, number);
+    function termuxMenu() {
+        console.log(menu);
+        rl.question('Choose an option: ', async (opt) => {
+            switch(opt) {
+                case '1':
+                    messagesModule.showAll(conn);
+                    termuxMenu();
+                    break;
+                case '2':
+                    rl.question('Enter number to promote: ', async (num) => {
+                        await adminModule.promote(conn, 'YOUR_GROUP_JID_HERE', num);
+                        termuxMenu();
+                    });
+                    break;
+                case '3':
+                    rl.question('Enter number to demote: ', async (num) => {
+                        await adminModule.demote(conn, 'YOUR_GROUP_JID_HERE', num);
+                        termuxMenu();
+                    });
+                    break;
+                case '4':
+                    rl.question('Enter number to kick: ', async (num) => {
+                        await adminModule.kick(conn, 'YOUR_GROUP_JID_HERE', num);
+                        termuxMenu();
+                    });
+                    break;
+                case '5':
+                    rl.question('Enter number to ban: ', async (num) => {
+                        await adminModule.ban(conn, num);
+                        termuxMenu();
+                    });
+                    break;
+                case '0':
+                    console.log(chalk.yellow('Exiting...'));
+                    process.exit(0);
+                default:
+                    termuxMenu();
+            }
+        });
     }
-    if(choice==="3"){
-        const g = await ask("Select group number: ");
-        const number = await ask("Enter number: ");
-        await admin.demote(conn, groups[g-1].jid, number);
-    }
-    if(choice==="4"){
-        const g = await ask("Select group number: ");
-        const number = await ask("Enter number: ");
-        await admin.kick(conn, groups[g-1].jid, number);
-    }
-    if(choice==="5"){
-        const number = await ask("Enter number to ban: ");
-        await admin.ban(conn, number);
-    }
-    if(choice==="0"){ process.exit(0); }
 
-    mainMenu();
-}
-
-// ---------- START BOT ----------
-async function startBot(){
-    console.log(chalk.redBright(figlet.textSync("PRO X USMAN")));
-
-    conn.on('qr', qr=>{
-        console.log(chalk.yellow("\nPAIRING CODE:"));
-        console.log(qr);
-    });
-
-    conn.on('open', async ()=>{
-        console.log(chalk.green("\n✅ CONNECTED TO WHATSAPP"));
-        await utils.autoInfo(conn);
-        features.start(conn); // 500+ MD bot features run on WhatsApp
-        mainMenu(); // Termux menu
-    });
-
-    await conn.connect({timeoutMs:30*1000});
+    termuxMenu();
 }
 
 startBot();
